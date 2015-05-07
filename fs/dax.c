@@ -27,6 +27,38 @@
 #include <linux/uio.h>
 #include <linux/vmstat.h>
 
+#define	CACHELINE_SIZE	64
+
+#define _mm_clflush(addr)\
+	asm volatile("clflush %0" : "+m" (*(volatile char *)(addr)));
+#define _mm_clflushopt(addr)\
+	asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char *)(addr)));
+#define _mm_clwb(addr)\
+	asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(addr)));
+#define _mm_pcommit()\
+	asm volatile(".byte 0x66, 0x0f, 0xae, 0xf8");
+
+static inline void PERSISTENT_BARRIER(void)
+{
+	asm volatile ("sfence\n" : : );
+	_mm_pcommit();
+}
+
+static inline void dax_flush_buffer(void *buf, uint32_t len, bool fence)
+{
+	uint32_t i;
+	len = len + ((unsigned long)(buf) & (CACHELINE_SIZE - 1));
+	for (i = 0; i < len; i += CACHELINE_SIZE)
+//		asm volatile ("clflush %0\n" : "+m" (*(char *)(buf+i)));
+		_mm_clwb(buf + i);
+	/* Do a fence only if asked. We often don't need to do a fence
+	 * immediately after clflush because even if we get context switched
+	 * between clflush and subsequent fence, the context switch operation
+	 * provides implicit fence. */
+	if (fence)
+		PERSISTENT_BARRIER();
+}
+
 int dax_clear_blocks(struct inode *inode, sector_t block, long size)
 {
 	struct block_device *bdev = inode->i_sb->s_bdev;
@@ -50,6 +82,7 @@ int dax_clear_blocks(struct inode *inode, sector_t block, long size)
 				memset(addr, 0, pgsz);
 			else
 				clear_page(addr);
+			dax_flush_buffer(addr, pgsz, 0);
 			addr += pgsz;
 			size -= pgsz;
 			count -= pgsz;
@@ -59,6 +92,7 @@ int dax_clear_blocks(struct inode *inode, sector_t block, long size)
 		}
 	} while (size);
 
+	PERSISTENT_BARRIER();
 	return 0;
 }
 EXPORT_SYMBOL_GPL(dax_clear_blocks);
@@ -154,12 +188,14 @@ static ssize_t dax_io(int rw, struct inode *inode, struct iov_iter *iter,
 			max = min(pos + size, end);
 		}
 
-		if (rw == WRITE)
+		if (rw == WRITE) {
 			len = copy_from_iter(addr, max - pos, iter);
-		else if (!hole)
+			dax_flush_buffer(addr, len, 0);
+		} else if (!hole) {
 			len = copy_to_iter(addr, max - pos, iter);
-		else
+		} else {
 			len = iov_iter_zero(max - pos, iter);
+		}
 
 		if (!len)
 			break;
@@ -168,6 +204,8 @@ static ssize_t dax_io(int rw, struct inode *inode, struct iov_iter *iter,
 		addr += len;
 	}
 
+	if (rw == WRITE)
+		PERSISTENT_BARRIER();
 	return (pos == start) ? retval : pos - start;
 }
 
