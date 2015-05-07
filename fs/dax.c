@@ -30,13 +30,13 @@
 #define	CACHELINE_SIZE	64
 
 #define _mm_clflush(addr)\
-	asm volatile("clflush %0" : "+m" (*(volatile char *)(addr)));
+	asm volatile("clflush %0" : "+m" (*(volatile char *)(addr)))
 #define _mm_clflushopt(addr)\
-	asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char *)(addr)));
+	asm volatile(".byte 0x66; clflush %0" : "+m" (*(volatile char *)(addr)))
 #define _mm_clwb(addr)\
-	asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(addr)));
+	asm volatile(".byte 0x66; xsaveopt %0" : "+m" (*(volatile char *)(addr)))
 #define _mm_pcommit()\
-	asm volatile(".byte 0x66, 0x0f, 0xae, 0xf8");
+	asm volatile(".byte 0x66, 0x0f, 0xae, 0xf8")
 
 static inline void PERSISTENT_BARRIER(void)
 {
