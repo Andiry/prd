@@ -539,6 +539,7 @@ int dax_zero_page_range(struct inode *inode, loff_t from, unsigned length,
 		if (err < 0)
 			return err;
 		memset(addr + offset, 0, length);
+		dax_flush_buffer(addr + offset, length, 1);
 	}
 
 	return 0;
