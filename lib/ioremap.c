@@ -12,6 +12,7 @@
 #include <linux/export.h>
 #include <asm/cacheflush.h>
 #include <asm/pgtable.h>
+#include <asm/tlbflush.h>
 
 static int ioremap_pte_range(pmd_t *pmd, unsigned long addr,
 		unsigned long end, phys_addr_t phys_addr, pgprot_t prot)
@@ -35,12 +36,12 @@ static inline int ioremap_pmd_range(pud_t *pud, unsigned long addr,
 		unsigned long end, phys_addr_t phys_addr, pgprot_t prot,
 		int hpage)
 {
-	pmd_t *pmd;
+	pmd_t *pmd_page, *pmd;
 	unsigned long next;
 
 	phys_addr -= addr;
-	pmd = pmd_alloc(&init_mm, pud, addr);
-	if (!pmd)
+	pmd_page = pmd_alloc(&init_mm, pud, addr);
+	if (!pmd_page)
 		return -ENOMEM;
 
 	if (hpage)
@@ -49,6 +50,7 @@ static inline int ioremap_pmd_range(pud_t *pud, unsigned long addr,
 			__func__, __LINE__, addr, end,
 			(unsigned long)(phys_addr + addr), (end - addr));
 
+	pmd = pmd_page;
 	do {
 		next = pmd_addr_end(addr, end);
 		if (hpage && cpu_has_pse && ((next - addr) >= PMD_SIZE)) {
@@ -80,12 +82,12 @@ static inline int ioremap_pud_range(pgd_t *pgd, unsigned long addr,
 		unsigned long end, phys_addr_t phys_addr, pgprot_t prot,
 		int hpage)
 {
-	pud_t *pud;
+	pud_t *pud_page, *pud;
 	unsigned long next;
 
 	phys_addr -= addr;
-	pud = pud_alloc(&init_mm, pgd, addr);
-	if (!pud)
+	pud_page = pud_alloc(&init_mm, pgd, addr);
+	if (!pud_page)
 		return -ENOMEM;
 
 	if (hpage)
@@ -94,6 +96,7 @@ static inline int ioremap_pud_range(pgd_t *pgd, unsigned long addr,
 			__func__, __LINE__, addr, end,
 			(unsigned long)(phys_addr + addr), (end - addr));
 
+	pud = pud_page;
 	do {
 		next = pud_addr_end(addr, end);
 		if (hpage && cpu_has_gbpages && ((next - addr) >= PUD_SIZE)) {

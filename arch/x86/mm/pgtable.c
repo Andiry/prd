@@ -1,5 +1,6 @@
 #include <linux/mm.h>
 #include <linux/gfp.h>
+#include <linux/export.h>
 #include <asm/pgalloc.h>
 #include <asm/pgtable.h>
 #include <asm/tlb.h>

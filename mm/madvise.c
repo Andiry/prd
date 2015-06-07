@@ -514,6 +514,12 @@ SYSCALL_DEFINE3(madvise, unsigned long, start, size_t, len_in, int, behavior)
 		if (!vma)
 			goto out;
 
+		/* madvise not supported with XIP_HUGE_TLB */
+		if (is_xip_hugetlb_mapping(vma)) {
+			error = -EINVAL;
+			goto out;
+		}
+
 		/* Here start < (end|vma->vm_end). */
 		if (start < vma->vm_start) {
 			unmapped_error = -ENOMEM;

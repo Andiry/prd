@@ -1027,6 +1027,9 @@ int copy_page_range(struct mm_struct *dst_mm, struct mm_struct *src_mm,
 			return 0;
 	}
 
+	if (is_xip_hugetlb_mapping(vma))
+		return 0;
+
 	if (is_vm_hugetlb_page(vma))
 		return copy_hugetlb_page_range(dst_mm, src_mm, vma);
 
@@ -1343,6 +1346,9 @@ static void unmap_single_vma(struct mmu_gather *tlb,
 				__unmap_hugepage_range_final(tlb, vma, start, end, NULL);
 				mutex_unlock(&vma->vm_file->f_mapping->i_mmap_mutex);
 			}
+		} else if (is_xip_hugetlb_mapping(vma)) {
+			unmap_xip_hugetlb_range(vma, start, end);
+			start = end;
 		} else
 			unmap_page_range(tlb, vma, start, end, details);
 	}
@@ -3369,6 +3375,18 @@ int handle_mm_fault(struct mm_struct *mm, struct vm_area_struct *vma,
 
 	/* do counter updates before entering really critical section. */
 	check_sync_rss_stat(current);
+
+	if (is_xip_hugetlb_mapping(vma)) {
+		int err;
+		struct vm_fault vmf;
+		vmf.virtual_address = (void __user *)(address & PAGE_MASK);
+		vmf.pgoff = (((address & PAGE_MASK) - vma->vm_start) >> PAGE_SHIFT);
+		vmf.flags = flags;
+		vmf.page = NULL;
+		err = vma->vm_ops->fault(vma, &vmf);
+		if (!err || (err == VM_FAULT_NOPAGE))
+			return 0;
+	}
 
 	/*
 	 * Enable the memcg OOM handling for faults triggered in user
