@@ -53,7 +53,8 @@ static inline int ioremap_pmd_range(pud_t *pud, unsigned long addr,
 	pmd = pmd_page;
 	do {
 		next = pmd_addr_end(addr, end);
-		if (hpage && cpu_has_pse && ((next - addr) >= PMD_SIZE)) {
+		if (hpage && cpu_has_pse && ((next - addr) >= PMD_SIZE)
+				&& IS_ALIGNED(phys_addr + addr, PMD_SIZE)) {
 			u64 pfn = ((u64)(phys_addr + addr)) >> PAGE_SHIFT;
 			prot = __pgprot((unsigned long)prot.pgprot | _PAGE_PSE);
 			if ((s64)pfn < 0)
@@ -99,7 +100,8 @@ static inline int ioremap_pud_range(pgd_t *pgd, unsigned long addr,
 	pud = pud_page;
 	do {
 		next = pud_addr_end(addr, end);
-		if (hpage && cpu_has_gbpages && ((next - addr) >= PUD_SIZE)) {
+		if (hpage && cpu_has_gbpages && ((next - addr) >= PUD_SIZE)
+				&& IS_ALIGNED(phys_addr + addr, PUD_SIZE)) {
 			u64 pfn = ((u64)(phys_addr + addr)) >> PAGE_SHIFT;
 			prot = __pgprot((unsigned long)prot.pgprot | _PAGE_PSE);
 			if ((s64)pfn < 0)
